@@ -1,0 +1,109 @@
+import pandas as pd
+import numpy as np
+import joblib
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+import os
+
+# --- Configuration ---
+DATA_PATH = 'pharmacies_sales_fake_data_1000_rows.csv' # Path to your generated fake data
+MODEL_DIR = 'mediguide_ml_model' # Directory to save model artifacts
+MODEL_FILENAME = 'mediguide_stock_predictor.joblib'
+FEATURES_FILENAME = 'model_features.joblib'
+
+# --- Ensure model directory exists ---
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+print(f"Loading data from {DATA_PATH}...")
+try:
+    df = pd.read_csv(DATA_PATH)
+    print("Data loaded successfully.")
+except FileNotFoundError:
+    print(f"Error: {DATA_PATH} not found. Please ensure the CSV file is in the correct directory.")
+    exit()
+
+# --- Data Preprocessing and Feature Engineering for the NEW Model ---
+print("Performing data preprocessing and feature engineering...")
+
+# 1. Convert 'sold_at' to datetime
+df['sold_at'] = pd.to_datetime(df['sold_at'])
+
+# 2. Sort data for accurate lag/rolling features
+# Essential for time-series features to be correct
+df = df.sort_values(by=['pharmacy_id', 'medicine_name', 'sold_at']).reset_index(drop=True)
+
+# 3. Create time-based features
+df['day_of_year'] = df['sold_at'].dt.dayofyear
+df['month'] = df['sold_at'].dt.month
+df['year'] = df['sold_at'].dt.year
+df['week_of_year'] = df['sold_at'].dt.isocalendar().week.astype(int)
+df['day_of_month'] = df['sold_at'].dt.day
+df['is_weekend'] = ((df['sold_at'].dt.dayofweek == 5) | (df['sold_at'].dt.dayofweek == 6)).astype(int)
+
+# 4. Create crucial historical sales features (lags and rolling statistics)
+# These are group-specific (per pharmacy and medicine)
+for col in ['quantity_sold']: # Can add 'price_at_sale' if you want to analyze its lags too
+    df[f'{col}_lag_1'] = df.groupby(['pharmacy_id', 'medicine_name'])[col].shift(1)
+    df[f'{col}_lag_7'] = df.groupby(['pharmacy_id', 'medicine_name'])[col].shift(7)
+    df[f'{col}_rolling_mean_7d'] = df.groupby(['pharmacy_id', 'medicine_name'])[col].rolling(window=7).mean().reset_index(level=[0,1], drop=True)
+    df[f'{col}_rolling_std_7d'] = df.groupby(['pharmacy_id', 'medicine_name'])[col].rolling(window=7).std().reset_index(level=[0,1], drop=True)
+
+# Fill NaN values created by shifting/rolling (e.g., for first few entries)
+# A common strategy is to fill with 0 or the mean/median of the column.
+# For sales data, 0 is often appropriate for missing historical values, or mean for rolling features.
+df.fillna(0, inplace=True) 
+
+# 5. Handle categorical features using one-hot encoding
+# Important: Ensure these columns are the ones you confirmed are available
+categorical_features = ['pharmacy_id', 'medicine_name', 'day_of_week', 'season', 'weather_condition', 'pharmacy_area']
+# Convert pharmacy_id to string for one-hot encoding
+df['pharmacy_id'] = df['pharmacy_id'].astype(str) 
+
+print(f"Categorical features for One-Hot Encoding: {categorical_features}")
+df = pd.get_dummies(df, columns=categorical_features, drop_first=True) # drop_first avoids multicollinearity
+
+# --- Define Features (X) and Target (y) ---
+# ****** IMPORTANT FIX HERE: EXCLUDE 'id' FROM FEATURES ******
+features = [col for col in df.columns if col not in ['sold_at', 'quantity_sold', 'id']] 
+target = 'quantity_sold'
+
+X = df[features]
+y = df[target]
+
+print(f"Total features used for training: {len(X.columns)}")
+print(f"Sample features: {X.columns.tolist()[:5]}...") # Print first 5 for brevity
+
+# --- Split Data (for model evaluation) ---
+# For time-series, a common practice is time-based splitting
+# Let's use a simple random split for this project as the data is synthetic
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+print(f"Training data shape: {X_train.shape}")
+print(f"Testing data shape: {X_test.shape}")
+
+# --- Model Training ---
+print("Training RandomForestRegressor model...")
+model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1) # n_jobs=-1 uses all available cores
+model.fit(X_train, y_train)
+print("Model training complete.")
+
+# --- Model Evaluation ---
+print("Evaluating model performance...")
+y_pred = model.predict(X_test)
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f"Mean Squared Error (MSE): {mse:.2f}")
+print(f"R-squared (R2): {r2:.2f}")
+
+# --- Save Model and Features ---
+model_path = os.path.join(MODEL_DIR, MODEL_FILENAME)
+features_path = os.path.join(MODEL_DIR, FEATURES_FILENAME)
+
+joblib.dump(model, model_path)
+joblib.dump(X.columns.tolist(), features_path) # Save the exact list of features used by the model
+
+print(f"Model saved to: {model_path}")
+print(f"Model features saved to: {features_path}")
+print("\nModel training script finished successfully!")
