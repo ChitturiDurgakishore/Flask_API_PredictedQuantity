@@ -56,6 +56,9 @@ static/uploads/
 # VSCode debug configs (optional)
 *.code-workspace
 
+*.joblib
+*.csv
+
 
 # Ignore trained models
 mediguide_stock_predictor.joblib
