@@ -55,3 +55,13 @@ static/uploads/
 
 # VSCode debug configs (optional)
 *.code-workspace
+
+
+# Ignore trained models
+mediguide_stock_predictor.joblib
+model_features.joblib
+pharmacy_stock_predictor.joblib
+
+# Ignore datasets
+pharmacies_sales_fake_data_1000_rows.csv
+pharmacy_sales_data_hyderabad.csv
