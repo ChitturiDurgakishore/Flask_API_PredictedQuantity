@@ -1,0 +1,57 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+.Python
+.pharma/
+
+# Flask cache / session files
+instance/
+*.db
+*.sqlite3
+*.log
+
+# Environment variables
+.env
+.env.*
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Pytest / coverage
+htmlcov/
+.coverage
+.tox/
+.pytest_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Uploads / media (optional)
+uploads/
+media/
+static/uploads/
+
+# VSCode debug configs (optional)
+*.code-workspace
